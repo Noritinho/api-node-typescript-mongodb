@@ -1,23 +1,29 @@
-import { MongoClient } from '../../database/mongo';
 import { User } from '../../models/user';
-import { CreateUserParams, IcreateUserRepository } from './protocols';
+import { HttpRequest, HttpResponse } from '../protocols';
+import {
+  CreateUserParams,
+  IcreateUserController,
+  IcreateUserRepository,
+} from './protocols';
 
-export class MongoCreateUser implements IcreateUserRepository {
-  async createUser(params: CreateUserParams): Promise<User> {
-    const { insertedId } = await MongoClient.db
-      .collection('users')
-      .insertOne(params);
+export class CreateUserController implements IcreateUserController {
+  constructor(private readonly createUserRepository: IcreateUserRepository) {}
 
-    const user = await MongoClient.db
-      .collection<Omit<User, 'id'>>('User')
-      .findOne({ _id: insertedId });
+  async handle(
+    httpRequest: HttpRequest<CreateUserParams>,
+  ): Promise<HttpResponse<User>> {
+    try {
+      if (!httpRequest.body) {
+        return { statusCode: 400, body: 'Please specify a body' };
+      }
 
-    if (!user) {
-      throw new Error('User not found');
+      const user = await this.createUserRepository.createUser(httpRequest.body);
+      return { statusCode: 201, body: user };
+    } catch (error) {
+      return {
+        statusCode: 500,
+        body: 'Something went wrong.',
+      };
     }
-
-    const { _id, ...rest } = user;
-
-    return { id: _id.toHexString(), ...rest };
   }
 }
